@@ -10,7 +10,7 @@ from tensorflow.keras.utils import plot_model
 from tensorflow.keras import backend as K
 
 LAMBDA = 1.13
-BETTA = 0.3
+BETTA = 1
 
 
 def sampling(args):
@@ -35,7 +35,7 @@ input_shape = (original_dim,)
 intermediate_dim = 512
 batch_size = 128
 latent_dim = 128
-epochs = 50
+epochs = 8
 
 # VAE model = encoder + decoder
 # build encoder model
@@ -68,43 +68,62 @@ if __name__ == '__main__':
     data = (x_test, y_test)
 
 
-    def vae_loss(y_true, y_pred):
-        z_mean = vae.get_layer('encoder').get_layer('z_mean').output
-        z_log_var = vae.get_layer('encoder').get_layer('z_log_var').output
-        z_var = tf.math.exp(z_log_var)
-        z_mean_square = tf.math.square(z_mean)
-        z_var_square = tf.math.square(z_var)
+    def reconstruction_loss(y_true, y_pred):
+        loss = 128 * binary_crossentropy(y_true, y_pred)
 
-        reconstruction_loss = binary_crossentropy(y_true, y_pred)
-        reconstruction_loss *= original_dim
-        kl_loss = 1 + z_log_var - z_mean_square - z_var
-        kl_loss = tf.math.reduce_sum(kl_loss, axis=-1)
-        kl_loss *= -0.5
+        return (1 + LAMBDA) * BETTA * loss
 
-        z_var_square_inv = tf.math.reciprocal(z_var_square)
 
-        first_term = tf.matmul(z_var_square, tf.transpose(z_var_square_inv))
+    def kl_loss1(y_true, y_pred):
+        mean = vae.get_layer('encoder').get_layer('z_mean').output
+        log_var = vae.get_layer('encoder').get_layer('z_log_var').output
+        var = tf.math.exp(log_var)
+        mean_square = tf.math.square(mean)
 
-        r = tf.matmul(z_mean * z_mean, tf.transpose(z_var_square_inv))
+        # kl_loss  q(z|x)||p(z)  q(z|x)||N(0,1)
+        loss = 1 + z_log_var - mean_square - var
+        loss = tf.math.reduce_sum(loss, axis=-1)
+        loss *= -0.5
 
-        r2 = z_mean * z_mean * z_var_square_inv
+        return loss
+
+
+    def kl_loss2(y_true, y_pred):
+        mean = vae.get_layer('encoder').get_layer('z_mean').output
+        log_var = vae.get_layer('encoder').get_layer('z_log_var').output
+        var = tf.math.exp(log_var)
+
+        var_square = tf.math.square(var)
+        var_square_reciprocal = tf.math.reciprocal(var_square)
+
+        first_term = tf.matmul(var_square, tf.transpose(var_square_reciprocal))
+
+        r = tf.matmul(mean * mean, tf.transpose(var_square_reciprocal))
+
+        r2 = mean * mean * var_square_reciprocal
         r2 = tf.reduce_sum(r2, 1)
 
-        second_term = 2 * tf.matmul(z_mean, tf.transpose(z_mean * z_var_square_inv))
+        second_term = 2 * tf.matmul(mean, tf.transpose(mean * var_square_reciprocal))
         second_term = r - second_term + tf.transpose(r2)
 
-        r = tf.reduce_sum(tf.math.log(z_var_square), 1)
+        r = tf.reduce_sum(tf.math.log(var_square), 1)
         r = tf.reshape(r, [-1, 1])
         third_term = r - tf.transpose(r)
 
-        PPP = 0.5 * (first_term + second_term + third_term - 128)
+        loss = 0.5 * tf.math.reduce_mean(first_term + second_term + third_term - 128)
 
-        return + (1 + LAMBDA) * BETTA * reconstruction_loss \
-               + tf.math.reduce_mean(kl_loss) \
-               + LAMBDA * tf.math.reduce_mean(PPP)
+        return LAMBDA * loss
 
 
-    vae.compile(optimizer='adam', loss=vae_loss, experimental_run_tf_function=False)
+    def vae_loss(y_true, y_pred):
+        return reconstruction_loss(y_true, y_pred) + kl_loss1(y_true, y_pred) + kl_loss2(y_true, y_pred)
+
+
+    vae.compile(optimizer='adam',
+                loss=vae_loss,
+                experimental_run_tf_function=False,
+                metrics=[reconstruction_loss, kl_loss1, kl_loss2])
+
     vae.summary()
     plot_model(vae,
                to_file='vae_mlp.png',
@@ -125,3 +144,7 @@ if __name__ == '__main__':
 
     encoder.save('tmp/encoder.h5')
     decoder.save('tmp/decoder.h5')
+
+import test
+
+test.evaluate()
