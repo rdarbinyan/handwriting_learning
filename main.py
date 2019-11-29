@@ -69,7 +69,7 @@ if __name__ == '__main__':
 
 
     def reconstruction_loss(y_true, y_pred):
-        loss = 128 * binary_crossentropy(y_true, y_pred)
+        loss = original_dim * binary_crossentropy(y_true, y_pred)
 
         return (1 + LAMBDA) * BETTA * loss
 
