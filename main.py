@@ -1,13 +1,12 @@
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
-import os
 from tensorflow.keras.layers import Lambda, Input, Dense, Concatenate
 from tensorflow.keras.models import Model
 from tensorflow.keras.datasets import mnist
-from tensorflow.keras.losses import mse, binary_crossentropy
+from tensorflow.keras.losses import binary_crossentropy
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras import backend as K
+import test
 
 LAMBDA = 1.13
 BETTA = 1
@@ -51,7 +50,7 @@ concated_layer = Concatenate()([z, numbers])
 # instantiate encoder model
 encoder = Model([inputs, numbers], [z_mean, z_log_var, concated_layer], name='encoder')
 encoder.summary()
-plot_model(encoder, to_file='vae_mlp_encoder.png', show_shapes=True)
+plot_model(encoder, to_file='tmp/vae_mlp_encoder.png', show_shapes=True)
 # build decoder model
 latent_inputs = Input(shape=(latent_dim + 10,), name='z_sampling')
 x = Dense(intermediate_dim, activation='relu')(latent_inputs)
@@ -59,7 +58,7 @@ outputs = Dense(original_dim, activation='sigmoid')(x)
 # instantiate decoder model
 decoder = Model(latent_inputs, outputs, name='decoder')
 decoder.summary()
-plot_model(decoder, to_file='vae_mlp_decoder.png', show_shapes=True)
+plot_model(decoder, to_file='tmp/vae_mlp_decoder.png', show_shapes=True)
 # instantiate VAE model
 outputs = decoder(encoder([inputs, numbers])[2])
 vae = Model([inputs, numbers], outputs, name='vae_mlp')
@@ -110,13 +109,15 @@ if __name__ == '__main__':
         r = tf.reshape(r, [-1, 1])
         third_term = r - tf.transpose(r)
 
-        loss = 0.5 * tf.math.reduce_mean(first_term + second_term + third_term - 128)
+        loss = 0.5 * tf.math.reduce_mean(first_term + second_term + third_term - latent_dim)
 
         return LAMBDA * loss
 
 
     def vae_loss(y_true, y_pred):
-        return reconstruction_loss(y_true, y_pred) + kl_loss1(y_true, y_pred) + kl_loss2(y_true, y_pred)
+        return reconstruction_loss(y_true, y_pred) \
+               + kl_loss1(y_true, y_pred) \
+               + kl_loss2(y_true, y_pred)
 
 
     vae.compile(optimizer='adam',
@@ -126,7 +127,7 @@ if __name__ == '__main__':
 
     vae.summary()
     plot_model(vae,
-               to_file='vae_mlp.png',
+               to_file='tmp/vae_mlp.png',
                show_shapes=True)
 
     # train the autoencoder
@@ -145,6 +146,5 @@ if __name__ == '__main__':
     encoder.save('tmp/encoder.h5')
     decoder.save('tmp/decoder.h5')
 
-import test
 
 test.evaluate()
