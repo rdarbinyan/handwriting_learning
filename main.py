@@ -5,7 +5,6 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.losses import binary_crossentropy
 from tensorflow.keras.utils import plot_model
-from tensorflow.keras import backend as K
 import test
 
 LAMBDA = 1.13
@@ -14,11 +13,11 @@ BETTA = 1
 
 def sampling(args):
     z_mean, z_log_var = args
-    batch = K.shape(z_mean)[0]
-    dim = K.int_shape(z_mean)[1]
+    batch = tf.keras.backend.shape(z_mean)[0]
+    dim = tf.keras.backend.shape(z_mean)[1]
     # by default, random_normal has mean=0 and std=1.0
-    epsilon = K.random_normal(shape=(batch, dim))
-    return z_mean + K.exp(0.5 * z_log_var) * epsilon
+    epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+    return z_mean + tf.keras.backend.exp(0.5 * z_log_var) * epsilon
 
 
 # MNIST dataset
@@ -34,13 +33,15 @@ input_shape = (original_dim,)
 intermediate_dim = 512
 batch_size = 128
 latent_dim = 128
-epochs = 8
+epochs = 50
 
 # VAE model = encoder + decoder
 # build encoder model
 inputs = Input(shape=input_shape, name='encoder_input')
 numbers = Input(shape=(10,), name='number_input')
 x = Dense(intermediate_dim, activation='relu')(inputs)
+x = Dense(intermediate_dim, activation='relu')(x)
+x = Dense(intermediate_dim, activation='relu')(x)
 z_mean = Dense(latent_dim, name='z_mean')(x)
 z_log_var = Dense(latent_dim, name='z_log_var')(x)
 # use reparameterization trick to push the sampling out as input
@@ -54,6 +55,8 @@ plot_model(encoder, to_file='tmp/vae_mlp_encoder.png', show_shapes=True)
 # build decoder model
 latent_inputs = Input(shape=(latent_dim + 10,), name='z_sampling')
 x = Dense(intermediate_dim, activation='relu')(latent_inputs)
+x = Dense(intermediate_dim, activation='relu')(x)
+x = Dense(intermediate_dim, activation='relu')(x)
 outputs = Dense(original_dim, activation='sigmoid')(x)
 # instantiate decoder model
 decoder = Model(latent_inputs, outputs, name='decoder')
