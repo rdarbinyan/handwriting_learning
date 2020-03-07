@@ -1,3 +1,6 @@
 .idea
-/js_models
-/test_results
+/test_results/*
+/tmp/*
+/models_for_js/*
+
+!.gitkeep
